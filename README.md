@@ -1,149 +1,470 @@
-# next-state-agent
+# NextState-Agent
 
-A Node.js + Express backend project that acts as a real next-state predictive agent using LangChain, OpenAI, and Tavily for live web search.
+A state-predictive AI agent built with **Node.js**, **Express**, **LangChain**, **OpenAI**, and **Tavily Search**.
 
-## Overview
+This project demonstrates a more structured way to build AI agents.
 
-The agent performs a sequence of operations to handle an input:
+Instead of immediately generating a response, the system first predicts:
 
-1. **Predicts** the next internal state based on user input.
-2. **Selects** an action based on the predicted state.
-3. **Executes** the action (using real OpenAI chat models and Tavily search).
-4. **Infers** an observed state from the executed action's result.
-5. **Computes** a transition error comparing predicted state with observed state.
-6. **Saves** a structured trace log.
+* What kind of request this is
+* What action should be taken
+* How confident it is in that decision
 
-All traces are automatically stored locally as JSON lines in `traces/traces.jsonl`.
+Then it executes the action, evaluates the result, scores the run, and stores a full trace for analysis.
 
-## Setup
+---
 
-1. Install dependencies:
+# Why This Project Exists
+
+Most basic AI chatbots follow this flow:
+
+```text
+User Input → LLM Response
+```
+
+That works, but it gives very little visibility into:
+
+* Why the model chose that answer
+* Whether it should have used a tool
+* How confident it was
+* Whether the action was correct
+* Whether the result should be trusted
+
+---
+
+# NextState-Agent Adds a Decision Layer
+
+Instead of directly responding, the system does:
+
+```text
+User Input
+→ Predict Next State
+→ Choose Action
+→ Execute Action
+→ Observe Result
+→ Evaluate Transition
+→ Score Retrieval
+→ Judge Full Run
+→ Compute Final Trust Score
+→ Save Trace
+```
+
+This makes the agent:
+
+* More explainable
+* Easier to debug
+* Easier to improve
+* Better for experimentation
+* Better for production workflows
+
+---
+
+# Core Idea: Predict the Next State First
+
+Before taking any action, the agent predicts its next internal state.
+
+Example:
+
+User asks:
+
+```text
+Give me latest AI news
+```
+
+Predicted state:
+
+```json
+{
+  "intent": "search",
+  "useTools": true,
+  "needsClarification": false,
+  "plannedActionType": "search_web"
+}
+```
+
+Meaning:
+
+* This looks like a search request
+* A tool should be used
+* Clarification is not needed
+* Best next action = web search
+
+---
+
+# Features
+
+## Direct Answers
+
+Example:
+
+```text
+Explain machine learning
+```
+
+The system predicts:
+
+* intent = answer
+* useTools = false
+* action = respond
+
+Then OpenAI generates a direct answer.
+
+---
+
+## Web Search + Answer Synthesis
+
+Example:
+
+```text
+Give me latest AI news
+```
+
+The system predicts:
+
+* intent = search
+* useTools = true
+* action = search_web
+
+Then:
+
+1. Tavily searches the web
+2. Search results are retrieved
+3. OpenAI turns those results into a final answer
+
+---
+
+## Ask for Clarification
+
+Example:
+
+```text
+Explain it again
+```
+
+The system predicts:
+
+* intent = clarify
+* needsClarification = true
+* action = ask_user
+
+Then it asks the user for more context.
+
+---
+
+# Project Structure
+
+```text
+src/
+├── server.js
+├── predictor.js
+├── actionSelector.js
+├── executor.js
+├── observer.js
+├── evaluator.js
+├── retrievalScorer.js
+├── judge.js
+├── confidenceCalculator.js
+└── traceStore.js
+
+traces/
+└── traces.jsonl
+```
+
+---
+
+# Module Breakdown
+
+## predictor.js
+
+Predicts the next internal state before any action is taken.
+
+Returns:
+
+* predictedState
+* stateConfidence
+* stateReason
+
+---
+
+## actionSelector.js
+
+Converts the predicted state into an executable action.
+
+Example:
+
+```json
+{
+  "type": "search_web"
+}
+```
+
+---
+
+## executor.js
+
+Performs the chosen action.
+
+Supports:
+
+* Direct answering
+* Web search
+* Clarification requests
+
+---
+
+## observer.js
+
+Builds the observed state after execution.
+
+Records what actually happened.
+
+---
+
+## evaluator.js
+
+Compares:
+
+* Predicted state
+* Observed state
+
+Checks alignment and score differences.
+
+---
+
+## retrievalScorer.js
+
+Evaluates the quality of retrieved search evidence.
+
+Example:
+
+```json
+{
+  "retrievalQuality": 0.6,
+  "retrievalQualityReason": "Found 3 specific article-like results."
+}
+```
+
+---
+
+## judge.js
+
+Uses an LLM as a second evaluator.
+
+Scores:
+
+* Relevance
+* Grounding
+* Action Appropriateness
+* Overall Run Quality
+
+---
+
+## confidenceCalculator.js
+
+Combines all scores into:
+
+```text
+finalTrustScore
+```
+
+Uses:
+
+* stateConfidence
+* retrievalQuality
+* judgeScore
+* agreementScore
+
+---
+
+## traceStore.js
+
+Stores every run in `traces.jsonl`.
+
+Useful for:
+
+* Debugging
+* Evaluation
+* Analytics
+* Future improvements
+
+---
+
+# Tech Stack
+
+* Node.js
+* Express.js
+* JavaScript (ES Modules)
+* LangChain
+* OpenAI API
+* Tavily Search API
+* Zod
+
+---
+
+# Installation
+
+## Clone Repository
+
+```bash
+git clone https://github.com/yourusername/NextState-Agent.git
+cd NextState-Agent
+```
+
+---
+
+## Install Dependencies
 
 ```bash
 npm install
 ```
 
-2. Environment Setup:
-
-Copy the `.env.example` to `.env` and fill in your real API keys:
+Or install required packages manually:
 
 ```bash
-cp .env.example .env
+npm install express dotenv @langchain/openai @langchain/tavily zod
 ```
 
-`.env` should contain:
-```
-OPENAI_API_KEY=your_openai_key
-TAVILY_API_KEY=your_tavily_key
+---
+
+# Environment Variables
+
+Create a `.env` file in the root folder:
+
+```env
+OPENAI_API_KEY=your_openai_api_key
+TAVILY_API_KEY=your_tavily_api_key
 PORT=3000
 ```
 
-3. Start the server:
+---
+
+# Run the Project
 
 ```bash
 npm start
 ```
 
-The server runs on `http://localhost:3000`.
+Expected output:
 
-## API Endpoint & Postman Testing
-
-### POST `/run-agent`
-
-Send JSON with an `input` strictly matching a string.
-
-**How to test in Postman:**
-
-1. Open Postman.
-2. Create a new **POST** request.
-3. URL: `http://localhost:3000/run-agent`
-4. Go to **Headers**:
-   * `Content-Type: application/json`
-5. Go to **Body > raw > JSON**.
-6. Paste one of the examples below and click **Send**.
-
-### Example 1: Predict Respond Directly
-```json
-{ "input": "Explain machine learning" }
+```text
+Server is running on port 3000
 ```
 
-### Example 2: Predict Search Web
-```json
-{ "input": "Give me latest AI news" }
+---
+
+# API Endpoints
+
+# GET /
+
+Health check route.
+
+Response:
+
+```text
+Next-state agent is running
 ```
 
-### Example 3: Predict Ask User
+---
+
+# POST /run-agent
+
+Runs the full agent pipeline.
+
+## Request Body
+
 ```json
-{ "input": "Help me" }
+{
+  "input": "Give me latest AI news"
+}
 ```
 
-## Dynamic Confidence Scoring
+---
 
-In earlier iterations, this agent used static/hardcoded confidence scores. Now, it employs a **dynamic confidence system**, composed of four parts. Note that not every score is technically a "confidence"; `stateConfidence` remains a confidence because it represents a pre-action state decision probability, while the others are better understood as quality or evaluation scores.
-
-1. **State Confidence**: How sure the agent is, before acting, that its chosen next move is correct. 
-   - *Old system*: `stateConfidence` was hardcoded by branch (e.g. search was always 0.85).
-   - *New system*: `stateConfidence` is predicted by the LLM based on the actual input. Confidence changes dynamically depending on clarity and certainty. For example, vague inputs will appropriately trigger lower state confidence. 
-2. **Retrieval Quality**: How good the retrieved evidence was (calculated heuristically based on tool search results). 
-3. **Judge Score**: How good an external LLM judge thought the full run was across relevance, grounding, and appropriateness.
-4. **Agreement Score**: How well the predicted action matched the judged best action.
-
-### How Final Trust Score is Computed
-The `finalTrustScore` is the final overall trust rating for the run. It fuses these parts dynamically based on the execution path. For instance, a search flow computes its final score via:
-`0.25 * stateConfidence + 0.25 * retrievalQuality + 0.40 * judgeScore + 0.10 * agreementScore`
-
-### Trace Capabilities
-
-Every execution generates a comprehensive trace saved automatically in `traces/traces.jsonl`. Traces now store complete context, actions, structural transition errors, and dynamic scores:
-- `predictedState`, `stateConfidence`, and `observedState` (with `observedDecisionScore`)
-- `judgeEvaluation` covering relevance and grounding
-- `scoreBreakdown` giving precise component scores
-- `scoreReasons` explaining exactly why each score was assigned
-
-## Example Final Response (w/ Score Breakdown)
+## Example Response
 
 ```json
 {
   "message": "Agent run complete",
-  "response": "Machine learning is a subset of artificial intelligence...",
+  "response": "Here are the latest AI developments...",
   "trace": {
-    "timestamp": "2023-11-20T12:00:00.000Z",
-    "input": "Explain machine learning",
-    "scoreBreakdown": {
-      "stateConfidence": 0.8,
-      "retrievalQuality": null,
-      "judgeScore": 0.95,
-      "agreementScore": 0.9,
-      "finalTrustScore": 0.89
+    "input": "Give me latest AI news",
+    "predictedState": {
+      "intent": "search"
     },
-    "scoreReasons": {
-      "stateReason": "The input contains query words ('what is' or 'explain')...",
-      "retrievalQualityReason": "No search results returned.",
-      "judgeReason": "Highly grounded and relevant.",
-      "agreementReason": "The predicted action correctly matched the judged action."
+    "stateConfidence": 0.82,
+    "action": {
+      "type": "search_web"
+    },
+    "judgeEvaluation": {
+      "overallJudgeScore": 0.9
+    },
+    "scoreBreakdown": {
+      "finalTrustScore": 0.81
     }
   }
 }
 ```
 
-## Project Structure
+---
 
-```text
-next-state-agent/
-├── traces/
-│   └── traces.jsonl
-├── src/
-│   ├── actionSelector.js
-│   ├── confidenceCalculator.js
-│   ├── evaluator.js
-│   ├── executor.js
-│   ├── judge.js
-│   ├── observer.js
-│   ├── predictor.js
-│   ├── retrievalScorer.js
-│   ├── server.js
-│   └── traceStore.js
-├── .env.example
-├── package.json
-└── README.md
-```
+# Why This Project Is Different
+
+This is not just a chatbot.
+
+It is an agent system with:
+
+## Decision Transparency
+
+You can inspect why it chose an action.
+
+## Confidence Estimation
+
+It scores its own decisions.
+
+## Tool Usage
+
+It can search the web.
+
+## Self Evaluation
+
+It judges its own outputs.
+
+## Trace Logging
+
+Every run is stored for future analysis.
+
+---
+
+# Example Use Cases
+
+* AI agent experimentation
+* Explainable AI systems
+* Tool-using assistants
+* Evaluation pipelines
+* Research prototypes
+* Debuggable AI workflows
+
+---
+
+# Future Improvements
+
+* Add memory
+* Multi-step agents
+* More tools
+* Better retrieval ranking
+* Better confidence calibration
+* UI dashboard for traces
+* Multi-agent collaboration
+* Learned scoring weights
+
+---
+
+# License
+
+MIT License
+
+---
+
+# Author
+
+Built by Devashish Sharma
