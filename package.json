@@ -1,0 +1,13 @@
+{
+  "name": "next-state-agent",
+  "version": "1.0.0",
+  "description": "Minimal Node.js + Express backend project that simulates a next-state predictive agent",
+  "main": "src/server.js",
+  "type": "module",
+  "scripts": {
+    "start": "node src/server.js"
+  },
+  "dependencies": {
+    "express": "^4.18.2"
+  }
+}
